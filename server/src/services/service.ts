@@ -219,7 +219,9 @@ const service = ({ strapi }: { strapi: Core.Strapi }) => ({
     const worksheet = XLSX.utils.json_to_sheet(xlsxRows, { header: fields });
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Export");
-    return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
+    return Buffer.from(
+      XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Uint8Array
+    );
   },
 
   async count(uid: UID.ContentType, filters?: FilterRule[]): Promise<number> {

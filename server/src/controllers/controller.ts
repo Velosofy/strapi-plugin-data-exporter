@@ -65,7 +65,7 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
           .exportXLSX(uid, fields, filters);
 
         ctx.body = {
-          data: xlsxBuffer.toString("base64"),
+          data: Buffer.from(xlsxBuffer).toString("base64"),
           filename: `${contentTypeName}-${date}.xlsx`,
           format,
         };
