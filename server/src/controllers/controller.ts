@@ -1,5 +1,6 @@
 import type { Core } from "@strapi/strapi";
-import type { Context, Next } from "koa";
+import type { Context } from "koa";
+import type { FilterRule } from "../services/service";
 
 type ExportFormat = "csv" | "json" | "xlsx";
 
@@ -7,6 +8,7 @@ interface ExportRequestBody {
   uid: string;
   fields: string[];
   format: ExportFormat;
+  filters?: FilterRule[];
 }
 
 const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
@@ -27,7 +29,7 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
 
   async export(ctx: Context) {
     const body = ctx.request.body as Partial<ExportRequestBody>;
-    const { uid, fields, format = "csv" } = body;
+    const { uid, fields, format = "csv", filters } = body;
 
     if (!uid || !Array.isArray(fields) || fields.length === 0) {
       ctx.status = 400;
@@ -49,7 +51,7 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
         const json: string = await strapi
           .plugin("data-exporter")
           .service("service")
-          .exportJSON(uid, fields);
+          .exportJSON(uid, fields, filters);
 
         ctx.body = {
           data: Buffer.from(json, "utf-8").toString("base64"),
@@ -60,7 +62,7 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
         const xlsxBuffer: Buffer = await strapi
           .plugin("data-exporter")
           .service("service")
-          .exportXLSX(uid, fields);
+          .exportXLSX(uid, fields, filters);
 
         ctx.body = {
           data: xlsxBuffer.toString("base64"),
@@ -71,7 +73,7 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
         const csv: string = await strapi
           .plugin("data-exporter")
           .service("service")
-          .exportCSV(uid, fields);
+          .exportCSV(uid, fields, filters);
 
         ctx.body = {
           data: Buffer.from(csv, "utf-8").toString("base64"),
@@ -83,6 +85,30 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
       ctx.status = 500;
       ctx.body = {
         error: err instanceof Error ? err.message : "Export failed",
+      };
+    }
+  },
+
+  async count(ctx: Context) {
+    const body = ctx.request.body as { uid?: string; filters?: FilterRule[] };
+    const { uid, filters } = body;
+
+    if (!uid) {
+      ctx.status = 400;
+      ctx.body = { error: "uid is required" };
+      return;
+    }
+
+    try {
+      const count: number = await strapi
+        .plugin("data-exporter")
+        .service("service")
+        .count(uid, filters);
+      ctx.body = { count };
+    } catch (err) {
+      ctx.status = 500;
+      ctx.body = {
+        error: err instanceof Error ? err.message : "Count failed",
       };
     }
   },

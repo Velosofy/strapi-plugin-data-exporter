@@ -18,9 +18,16 @@ export default {
       handler: "controller.export",
       config: {
         policies: [],
-        auth: {
-          scope: ["admin"],
-        },
+        auth: { scope: ["admin"] },
+      },
+    },
+    {
+      method: "POST",
+      path: "/count",
+      handler: "controller.count",
+      config: {
+        policies: [],
+        auth: { scope: ["admin"] },
       },
     },
   ],

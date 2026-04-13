@@ -41,6 +41,45 @@ type RelationValue =
 
 type FlatRow = Record<string, string | number | boolean | null>;
 
+export interface FilterRule {
+  field: string;
+  operator: string;
+  value: string;
+}
+
+// Map our UI operator keys to Strapi filter operators
+const OPERATOR_MAP: Record<string, string> = {
+  $eq: "$eq",
+  $ne: "$ne",
+  $contains: "$containsi",
+  $notContains: "$notContainsi",
+  $startsWith: "$startsWith",
+  $endsWith: "$endsWith",
+  $gt: "$gt",
+  $gte: "$gte",
+  $lt: "$lt",
+  $lte: "$lte",
+  $null: "$null",
+  $notNull: "$notNull",
+};
+
+function buildStrapiFilters(
+  rules: FilterRule[]
+): Record<string, unknown> | undefined {
+  if (!rules || rules.length === 0) return undefined;
+
+  const and = rules
+    .filter((r) => r.field && r.operator)
+    .map((r) => {
+      const op = OPERATOR_MAP[r.operator] ?? r.operator;
+      if (op === "$null") return { [r.field]: { $null: true } };
+      if (op === "$notNull") return { [r.field]: { $null: false } };
+      return { [r.field]: { [op]: r.value } };
+    });
+
+  return and.length > 0 ? { $and: and } : undefined;
+}
+
 const service = ({ strapi }: { strapi: Core.Strapi }) => ({
   getContentTypes(): ContentTypeMeta[] {
     return Object.values(strapi.contentTypes)
@@ -70,7 +109,11 @@ const service = ({ strapi }: { strapi: Core.Strapi }) => ({
       .sort((a, b) => a.displayName.localeCompare(b.displayName));
   },
 
-  async fetchRows(uid: UID.ContentType, fields: string[]): Promise<FlatRow[]> {
+  async fetchRows(
+    uid: UID.ContentType,
+    fields: string[],
+    filters?: FilterRule[]
+  ): Promise<FlatRow[]> {
     const PAGE_SIZE = 200;
     let start = 0;
     let allRecords: Record<string, unknown>[] = [];
@@ -91,10 +134,13 @@ const service = ({ strapi }: { strapi: Core.Strapi }) => ({
       {}
     );
 
+    const strapiFilters = buildStrapiFilters(filters ?? []);
+
     while (hasMore) {
       const results = await (strapi.documents(uid) as any).findMany({
         ...(scalarFields.length > 0 ? { fields: scalarFields } : {}),
         ...(relationalFields.length > 0 ? { populate: populateArg } : {}),
+        ...(strapiFilters ? { filters: strapiFilters } : {}),
         start,
         limit: PAGE_SIZE,
         status: "published",
@@ -136,8 +182,12 @@ const service = ({ strapi }: { strapi: Core.Strapi }) => ({
     });
   },
 
-  async exportCSV(uid: UID.ContentType, fields: string[]): Promise<string> {
-    const rows = await this.fetchRows(uid, fields);
+  async exportCSV(
+    uid: UID.ContentType,
+    fields: string[],
+    filters?: FilterRule[]
+  ): Promise<string> {
+    const rows = await this.fetchRows(uid, fields, filters);
     const csvRows = rows.map((r) => {
       const out: Record<string, string | number | boolean> = {};
       for (const k of fields) out[k] = r[k] ?? "";
@@ -146,13 +196,21 @@ const service = ({ strapi }: { strapi: Core.Strapi }) => ({
     return Papa.unparse(csvRows, { columns: fields, quotes: true });
   },
 
-  async exportJSON(uid: UID.ContentType, fields: string[]): Promise<string> {
-    const rows = await this.fetchRows(uid, fields);
+  async exportJSON(
+    uid: UID.ContentType,
+    fields: string[],
+    filters?: FilterRule[]
+  ): Promise<string> {
+    const rows = await this.fetchRows(uid, fields, filters);
     return JSON.stringify(rows, null, 2);
   },
 
-  async exportXLSX(uid: UID.ContentType, fields: string[]): Promise<Buffer> {
-    const rows = await this.fetchRows(uid, fields);
+  async exportXLSX(
+    uid: UID.ContentType,
+    fields: string[],
+    filters?: FilterRule[]
+  ): Promise<Buffer> {
+    const rows = await this.fetchRows(uid, fields, filters);
     const xlsxRows = rows.map((r) => {
       const out: Record<string, string | number | boolean> = {};
       for (const k of fields) out[k] = r[k] ?? "";
@@ -162,6 +220,14 @@ const service = ({ strapi }: { strapi: Core.Strapi }) => ({
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Export");
     return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
+  },
+
+  async count(uid: UID.ContentType, filters?: FilterRule[]): Promise<number> {
+    const strapiFilters = buildStrapiFilters(filters ?? []);
+    return await (strapi.documents(uid) as any).count({
+      ...(strapiFilters ? { filters: strapiFilters } : {}),
+      status: "published",
+    });
   },
 });
 
