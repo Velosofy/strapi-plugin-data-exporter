@@ -15,7 +15,7 @@ export default {
     {
       method: "POST",
       path: "/export",
-      handler: "controller.exportCSV",
+      handler: "controller.export",
       config: {
         policies: [],
         auth: {

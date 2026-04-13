@@ -1,6 +1,7 @@
 import type { Core } from "@strapi/strapi";
 import type { Struct, Schema, UID } from "@strapi/types";
 import Papa from "papaparse";
+import * as XLSX from "xlsx";
 
 const SYSTEM_FIELDS = new Set([
   "id",
@@ -69,7 +70,7 @@ const service = ({ strapi }: { strapi: Core.Strapi }) => ({
       .sort((a, b) => a.displayName.localeCompare(b.displayName));
   },
 
-  async exportCSV(uid: UID.ContentType, fields: string[]): Promise<string> {
+  async fetchRows(uid: UID.ContentType, fields: string[]): Promise<FlatRow[]> {
     const PAGE_SIZE = 200;
     let start = 0;
     let allRecords: Record<string, unknown>[] = [];
@@ -108,14 +109,14 @@ const service = ({ strapi }: { strapi: Core.Strapi }) => ({
       }
     }
 
-    const rows: FlatRow[] = allRecords.map((record) => {
+    return allRecords.map((record) => {
       const row: FlatRow = {};
       for (const field of fields) {
         const value = record[field];
         const attrType = attributes[field]?.type;
 
         if (value === null || value === undefined) {
-          row[field] = "";
+          row[field] = null;
         } else if (RELATIONAL_TYPES.has(attrType)) {
           const rel = value as RelationValue;
           if (Array.isArray(rel)) {
@@ -133,11 +134,34 @@ const service = ({ strapi }: { strapi: Core.Strapi }) => ({
       }
       return row;
     });
+  },
 
-    return Papa.unparse(rows, {
-      columns: fields,
-      quotes: true,
+  async exportCSV(uid: UID.ContentType, fields: string[]): Promise<string> {
+    const rows = await this.fetchRows(uid, fields);
+    const csvRows = rows.map((r) => {
+      const out: Record<string, string | number | boolean> = {};
+      for (const k of fields) out[k] = r[k] ?? "";
+      return out;
     });
+    return Papa.unparse(csvRows, { columns: fields, quotes: true });
+  },
+
+  async exportJSON(uid: UID.ContentType, fields: string[]): Promise<string> {
+    const rows = await this.fetchRows(uid, fields);
+    return JSON.stringify(rows, null, 2);
+  },
+
+  async exportXLSX(uid: UID.ContentType, fields: string[]): Promise<Buffer> {
+    const rows = await this.fetchRows(uid, fields);
+    const xlsxRows = rows.map((r) => {
+      const out: Record<string, string | number | boolean> = {};
+      for (const k of fields) out[k] = r[k] ?? "";
+      return out;
+    });
+    const worksheet = XLSX.utils.json_to_sheet(xlsxRows, { header: fields });
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Export");
+    return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
   },
 });
 

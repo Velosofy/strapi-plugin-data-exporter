@@ -1,9 +1,12 @@
 import type { Core } from "@strapi/strapi";
 import type { Context, Next } from "koa";
 
+type ExportFormat = "csv" | "json" | "xlsx";
+
 interface ExportRequestBody {
   uid: string;
   fields: string[];
+  format: ExportFormat;
 }
 
 const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
@@ -22,9 +25,9 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
     }
   },
 
-  async exportCSV(ctx: Context) {
+  async export(ctx: Context) {
     const body = ctx.request.body as Partial<ExportRequestBody>;
-    const { uid, fields } = body;
+    const { uid, fields, format = "csv" } = body;
 
     if (!uid || !Array.isArray(fields) || fields.length === 0) {
       ctx.status = 400;
@@ -32,19 +35,50 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
       return;
     }
 
+    if (format !== "csv" && format !== "json" && format !== "xlsx") {
+      ctx.status = 400;
+      ctx.body = { error: 'format must be "csv", "json" or "xlsx"' };
+      return;
+    }
+
     try {
-      const csv: string = await strapi
-        .plugin("data-exporter")
-        .service("service")
-        .exportCSV(uid, fields);
-
       const contentTypeName = uid.split(".").pop() ?? "export";
-      const filename = `${contentTypeName}-${new Date().toISOString().split("T")[0]}.csv`;
+      const date = new Date().toISOString().split("T")[0];
 
-      ctx.body = {
-        csv: Buffer.from(csv, "utf-8").toString("base64"),
-        filename,
-      };
+      if (format === "json") {
+        const json: string = await strapi
+          .plugin("data-exporter")
+          .service("service")
+          .exportJSON(uid, fields);
+
+        ctx.body = {
+          data: Buffer.from(json, "utf-8").toString("base64"),
+          filename: `${contentTypeName}-${date}.json`,
+          format,
+        };
+      } else if (format === "xlsx") {
+        const xlsxBuffer: Buffer = await strapi
+          .plugin("data-exporter")
+          .service("service")
+          .exportXLSX(uid, fields);
+
+        ctx.body = {
+          data: xlsxBuffer.toString("base64"),
+          filename: `${contentTypeName}-${date}.xlsx`,
+          format,
+        };
+      } else {
+        const csv: string = await strapi
+          .plugin("data-exporter")
+          .service("service")
+          .exportCSV(uid, fields);
+
+        ctx.body = {
+          data: Buffer.from(csv, "utf-8").toString("base64"),
+          filename: `${contentTypeName}-${date}.csv`,
+          format,
+        };
+      }
     } catch (err) {
       ctx.status = 500;
       ctx.body = {

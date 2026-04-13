@@ -55,6 +55,7 @@ const HomePage = () => {
   const [selectedFields, setSelectedFields] = useState<Set<string>>(new Set());
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [exportFormat, setExportFormat] = useState<"csv" | "json" | "xlsx">("csv");
 
   const t = (key: string) =>
     formatMessage({ id: getTranslation(key), defaultMessage: key });
@@ -124,19 +125,23 @@ const HomePage = () => {
       const res = await post(`/${PLUGIN_ID}/export`, {
         uid: selectedUID,
         fields: Array.from(selectedFields),
+        format: exportFormat,
       });
 
-      const { csv, filename } = (res as any).data ?? {};
-      if (!csv) throw new Error("Empty response");
+      const { data, filename } = (res as any).data ?? {};
+      if (!data) throw new Error("Empty response");
 
-      // Decode csv → UTF-8 string → Blob → download
-      const csvText = atob(csv);
-      const blob = new Blob([csvText], { type: "text/csv;charset=utf-8;" });
+      const mimeType =
+        exportFormat === "json"
+          ? "application/json;charset=utf-8;"
+          : exportFormat === "xlsx"
+          ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          : "text/csv;charset=utf-8;";
+      const blob = new Blob([atob(data)], { type: mimeType });
       const url = URL.createObjectURL(blob);
-
       const a = document.createElement("a");
       a.href = url;
-      a.download = filename ?? "export.csv";
+      a.download = filename ?? `export.${exportFormat}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -329,15 +334,46 @@ const HomePage = () => {
           )}
 
           <Box paddingTop={6}>
-            <Flex gap={2} alignItems="center">
-              <Button
-                variant="default"
-                disabled={selectedFields.size === 0 || isExporting}
-                onClick={handleExport}
-              >
-                {isExporting ? t("button.exporting") : t("button.export")}
-              </Button>
-              {isExporting && <Loader small />}
+            <Flex gap={3} alignItems="center" direction="column" style={{ alignItems: "flex-start" }}>
+              <Flex gap={2} alignItems="center">
+                <Button
+                  variant={exportFormat === "csv" ? "default" : "tertiary"}
+                  size="S"
+                  onClick={() => setExportFormat("csv")}
+                >
+                  {t("format.csv")}
+                </Button>
+                <Button
+                  variant={exportFormat === "json" ? "default" : "tertiary"}
+                  size="S"
+                  onClick={() => setExportFormat("json")}
+                >
+                  {t("format.json")}
+                </Button>
+                <Button
+                  variant={exportFormat === "xlsx" ? "default" : "tertiary"}
+                  size="S"
+                  onClick={() => setExportFormat("xlsx")}
+                >
+                  {t("format.xlsx")}
+                </Button>
+              </Flex>
+              <Flex gap={2} alignItems="center">
+                <Button
+                  variant="success"
+                  disabled={selectedFields.size === 0 || isExporting}
+                  onClick={handleExport}
+                >
+                  {isExporting
+                    ? t("button.exporting")
+                    : exportFormat === "csv"
+                    ? t("button.export-csv")
+                    : exportFormat === "xlsx"
+                    ? t("button.export-xlsx")
+                    : t("button.export-json")}
+                </Button>
+                {isExporting && <Loader small />}
+              </Flex>
             </Flex>
           </Box>
         </Box>
