@@ -34,6 +34,7 @@ interface ContentTypeMeta {
   uid: string;
   displayName: string;
   fields: FieldMeta[];
+  hasDraftAndPublish: boolean;
 }
 
 interface FilterRule {
@@ -104,7 +105,6 @@ const HomePage = () => {
   const { formatMessage } = useIntl();
   const { get, post } = useFetchClient();
 
-  const [step, setStep] = useState<1 | 2>(1);
   const [contentTypes, setContentTypes] = useState<ContentTypeMeta[]>([]);
   const [loadingContentTypes, setLoadingContentTypes] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -114,6 +114,7 @@ const HomePage = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportFormat, setExportFormat] = useState<"csv" | "json" | "xlsx">("csv");
+  const [exportStatus, setExportStatus] = useState<"published" | "draft">("published");
 
   const [filters, setFilters] = useState<FilterRule[]>([]);
   const [recordCount, setRecordCount] = useState<number | null>(null);
@@ -123,12 +124,12 @@ const HomePage = () => {
   const t = (key: string) =>
     formatMessage({ id: getTranslation(key), defaultMessage: key });
 
-  // Debounced count fetch — runs whenever uid or filters change
-  const fetchCount = useCallback(async (uid: string, rules: FilterRule[]) => {
+  // Debounced count fetch — runs whenever uid, filters or status change
+  const fetchCount = useCallback(async (uid: string, rules: FilterRule[], status: "published" | "draft") => {
     if (!uid) return;
     setCountLoading(true);
     try {
-      const res = await post(`/${PLUGIN_ID}/count`, { uid, filters: rules });
+      const res = await post(`/${PLUGIN_ID}/count`, { uid, filters: rules, status });
       setRecordCount((res as any).data?.count ?? 0);
     } catch {
       setRecordCount(null);
@@ -141,9 +142,9 @@ const HomePage = () => {
   useEffect(() => {
     if (!selectedUID) return;
     if (countDebounceRef.current) clearTimeout(countDebounceRef.current);
-    countDebounceRef.current = setTimeout(() => fetchCount(selectedUID, filters), 400);
+    countDebounceRef.current = setTimeout(() => fetchCount(selectedUID, filters, exportStatus), 400);
     return () => { if (countDebounceRef.current) clearTimeout(countDebounceRef.current); };
-  }, [selectedUID, filters, fetchCount]);
+  }, [selectedUID, filters, exportStatus, fetchCount]);
 
   useEffect(() => {
     const load = async () => {
@@ -167,6 +168,7 @@ const HomePage = () => {
     setSelectedUID(uid);
     setFilters([]);
     setRecordCount(null);
+    setExportStatus("published");
     const ct = contentTypes.find((c) => c.uid === uid);
     if (ct) {
       const defaults = new Set(
@@ -253,7 +255,10 @@ const HomePage = () => {
         fields: Array.from(selectedFields),
         format: exportFormat,
         filters,
+        status: exportStatus,
       });
+
+      console.log("Export response", res);
 
       const { data, filename } = (res as any).data ?? {};
       if (!data) throw new Error("Empty response");
@@ -264,7 +269,11 @@ const HomePage = () => {
           : exportFormat === "xlsx"
           ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           : "text/csv;charset=utf-8;";
-      const blob = new Blob([atob(data)], { type: mimeType });
+      // Decode base64 → Uint8Array to preserve binary integrity (critical for XLSX)
+      const binary = atob(data);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], { type: mimeType });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -306,16 +315,12 @@ const HomePage = () => {
         </Box>
       )}
 
-      {/* Step 1 — Select Content Type */}
-      {step === 1 && (
-        <Box background="neutral0" shadow="filterShadow" padding={6} hasRadius>
-          <Typography variant="delta" tag="h2">
-            {t("step.select-content-type.label")}
-          </Typography>
-
-          <Box paddingTop={4} style={{ maxWidth: 400 }}>
+      {/* Content type selector — always visible */}
+      <Box background="neutral0" shadow="filterShadow" padding={6} hasRadius>
+        <Flex alignItems="flex-end" gap={4}>
+          <Box style={{ maxWidth: 400, flex: 1 }}>
             {loadingContentTypes ? (
-              <Flex justifyContent="center" padding={6}>
+              <Flex justifyContent="center" padding={4}>
                 <Loader small />
               </Flex>
             ) : contentTypes.length === 0 ? (
@@ -339,40 +344,12 @@ const HomePage = () => {
               </Field.Root>
             )}
           </Box>
+        </Flex>
+      </Box>
 
-          <Box paddingTop={6}>
-            <Button
-              variant="default"
-              disabled={!selectedUID}
-              onClick={() => setStep(2)}
-            >
-              {t("button.next")}
-            </Button>
-          </Box>
-        </Box>
-      )}
-
-      {/* Step 2 — Select Fields */}
-      {step === 2 && selectedContentType && (
-        <Box background="neutral0" shadow="filterShadow" padding={6} hasRadius>
-          <Flex
-            justifyContent="space-between"
-            alignItems="center"
-            paddingBottom={2}
-          >
-            <Typography variant="delta" tag="h2">
-              {t("step.select-fields.label")}
-            </Typography>
-            <Button variant="tertiary" size="S" onClick={() => setStep(1)}>
-              {t("button.back")}
-            </Button>
-          </Flex>
-
-          <Box paddingBottom={4}>
-            <Typography variant="epsilon" textColor="neutral600">
-              {selectedContentType.displayName}
-            </Typography>
-          </Box>
+      {/* Fields, filters & export — shown once a content type is selected */}
+      {selectedContentType && (
+        <Box background="neutral0" shadow="filterShadow" padding={6} hasRadius marginTop={4}>
 
           {selectedContentType.fields.length === 0 ? (
             <Typography textColor="neutral600">
@@ -380,7 +357,7 @@ const HomePage = () => {
             </Typography>
           ) : (
             <>
-              <Flex gap={2} paddingBottom={4}>
+              <Flex gap={2} paddingBottom={4} paddingTop={4}>
                 <Button
                   variant="secondary"
                   size="S"
@@ -567,6 +544,28 @@ const HomePage = () => {
 
           <Box paddingTop={6}>
             <Flex gap={3} alignItems="center" direction="column" style={{ alignItems: "flex-start" }}>
+              {/* Status toggle — only shown for content types with draft & publish */}
+              {selectedContentType?.hasDraftAndPublish && (
+                <Flex gap={2} alignItems="center">
+                  <Typography variant="omega" textColor="neutral600" style={{ marginRight: 4 }}>
+                    {t("status.label")}
+                  </Typography>
+                  <Button
+                    variant={exportStatus === "published" ? "default" : "tertiary"}
+                    size="S"
+                    onClick={() => setExportStatus("published")}
+                  >
+                    {t("status.published")}
+                  </Button>
+                  <Button
+                    variant={exportStatus === "draft" ? "default" : "tertiary"}
+                    size="S"
+                    onClick={() => setExportStatus("draft")}
+                  >
+                    {t("status.draft")}
+                  </Button>
+                </Flex>
+              )}
               <Flex gap={2} alignItems="center">
                 <Button
                   variant={exportFormat === "csv" ? "default" : "tertiary"}
@@ -593,7 +592,7 @@ const HomePage = () => {
               <Flex gap={2} alignItems="center">
                 <Button
                   variant="success"
-                  disabled={selectedFields.size === 0 || isExporting}
+                  disabled={selectedFields.size === 0 || isExporting || recordCount === 0}
                   onClick={handleExport}
                 >
                   {isExporting

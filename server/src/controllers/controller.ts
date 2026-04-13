@@ -9,6 +9,7 @@ interface ExportRequestBody {
   fields: string[];
   format: ExportFormat;
   filters?: FilterRule[];
+  status?: "published" | "draft";
 }
 
 const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
@@ -29,7 +30,7 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
 
   async export(ctx: Context) {
     const body = ctx.request.body as Partial<ExportRequestBody>;
-    const { uid, fields, format = "csv", filters } = body;
+    const { uid, fields, format = "csv", filters, status = "published" } = body;
 
     if (!uid || !Array.isArray(fields) || fields.length === 0) {
       ctx.status = 400;
@@ -51,7 +52,7 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
         const json: string = await strapi
           .plugin("data-exporter")
           .service("service")
-          .exportJSON(uid, fields, filters);
+          .exportJSON(uid, fields, filters, status);
 
         ctx.body = {
           data: Buffer.from(json, "utf-8").toString("base64"),
@@ -62,7 +63,7 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
         const xlsxBuffer: Buffer = await strapi
           .plugin("data-exporter")
           .service("service")
-          .exportXLSX(uid, fields, filters);
+          .exportXLSX(uid, fields, filters, status);
 
         ctx.body = {
           data: Buffer.from(xlsxBuffer).toString("base64"),
@@ -73,7 +74,7 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
         const csv: string = await strapi
           .plugin("data-exporter")
           .service("service")
-          .exportCSV(uid, fields, filters);
+          .exportCSV(uid, fields, filters, status);
 
         ctx.body = {
           data: Buffer.from(csv, "utf-8").toString("base64"),
@@ -90,8 +91,8 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
   },
 
   async count(ctx: Context) {
-    const body = ctx.request.body as { uid?: string; filters?: FilterRule[] };
-    const { uid, filters } = body;
+    const body = ctx.request.body as { uid?: string; filters?: FilterRule[]; status?: "published" | "draft" };
+    const { uid, filters, status = "published" } = body;
 
     if (!uid) {
       ctx.status = 400;
@@ -103,7 +104,7 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
       const count: number = await strapi
         .plugin("data-exporter")
         .service("service")
-        .count(uid, filters);
+        .count(uid, filters, status);
       ctx.body = { count };
     } catch (err) {
       ctx.status = 500;

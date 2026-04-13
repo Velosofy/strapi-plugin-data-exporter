@@ -32,6 +32,7 @@ export interface ContentTypeMeta {
   uid: UID.ContentType;
   displayName: string;
   fields: FieldMeta[];
+  hasDraftAndPublish: boolean;
 }
 
 type RelationValue =
@@ -104,6 +105,7 @@ const service = ({ strapi }: { strapi: Core.Strapi }) => ({
           uid: ct.uid,
           displayName: ct.info.displayName ?? ct.info.singularName,
           fields,
+          hasDraftAndPublish: ct.options?.draftAndPublish === true,
         };
       })
       .sort((a, b) => a.displayName.localeCompare(b.displayName));
@@ -112,7 +114,8 @@ const service = ({ strapi }: { strapi: Core.Strapi }) => ({
   async fetchRows(
     uid: UID.ContentType,
     fields: string[],
-    filters?: FilterRule[]
+    filters?: FilterRule[],
+    status: "published" | "draft" = "published"
   ): Promise<FlatRow[]> {
     const PAGE_SIZE = 200;
     let start = 0;
@@ -135,6 +138,7 @@ const service = ({ strapi }: { strapi: Core.Strapi }) => ({
     );
 
     const strapiFilters = buildStrapiFilters(filters ?? []);
+    const hasDraftAndPublish = ct?.options?.draftAndPublish === true;
 
     while (hasMore) {
       const results = await (strapi.documents(uid) as any).findMany({
@@ -143,7 +147,7 @@ const service = ({ strapi }: { strapi: Core.Strapi }) => ({
         ...(strapiFilters ? { filters: strapiFilters } : {}),
         start,
         limit: PAGE_SIZE,
-        status: "published",
+        ...(hasDraftAndPublish ? { status } : {}),
       }) as Record<string, unknown>[];
 
       if (!results || results.length === 0) {
@@ -185,9 +189,10 @@ const service = ({ strapi }: { strapi: Core.Strapi }) => ({
   async exportCSV(
     uid: UID.ContentType,
     fields: string[],
-    filters?: FilterRule[]
+    filters?: FilterRule[],
+    status: "published" | "draft" = "published"
   ): Promise<string> {
-    const rows = await this.fetchRows(uid, fields, filters);
+    const rows = await this.fetchRows(uid, fields, filters, status);
     const csvRows = rows.map((r) => {
       const out: Record<string, string | number | boolean> = {};
       for (const k of fields) out[k] = r[k] ?? "";
@@ -199,18 +204,20 @@ const service = ({ strapi }: { strapi: Core.Strapi }) => ({
   async exportJSON(
     uid: UID.ContentType,
     fields: string[],
-    filters?: FilterRule[]
+    filters?: FilterRule[],
+    status: "published" | "draft" = "published"
   ): Promise<string> {
-    const rows = await this.fetchRows(uid, fields, filters);
+    const rows = await this.fetchRows(uid, fields, filters, status);
     return JSON.stringify(rows, null, 2);
   },
 
   async exportXLSX(
     uid: UID.ContentType,
     fields: string[],
-    filters?: FilterRule[]
+    filters?: FilterRule[],
+    status: "published" | "draft" = "published"
   ): Promise<Buffer> {
-    const rows = await this.fetchRows(uid, fields, filters);
+    const rows = await this.fetchRows(uid, fields, filters, status);
     const xlsxRows = rows.map((r) => {
       const out: Record<string, string | number | boolean> = {};
       for (const k of fields) out[k] = r[k] ?? "";
@@ -224,11 +231,17 @@ const service = ({ strapi }: { strapi: Core.Strapi }) => ({
     );
   },
 
-  async count(uid: UID.ContentType, filters?: FilterRule[]): Promise<number> {
+  async count(
+    uid: UID.ContentType,
+    filters?: FilterRule[],
+    status: "published" | "draft" = "published"
+  ): Promise<number> {
+    const ct = strapi.contentTypes[uid];
+    const hasDraftAndPublish = ct?.options?.draftAndPublish === true;
     const strapiFilters = buildStrapiFilters(filters ?? []);
     return await (strapi.documents(uid) as any).count({
       ...(strapiFilters ? { filters: strapiFilters } : {}),
-      status: "published",
+      ...(hasDraftAndPublish ? { status } : {}),
     });
   },
 });
