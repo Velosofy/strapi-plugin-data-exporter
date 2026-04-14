@@ -1,10 +1,10 @@
 # strapi-plugin-data-exporter
 
-A **Strapi v5** admin plugin that lets you export any content type's data to a **CSV file** — with full control over which columns to include.
+A **Strapi v5** admin plugin that lets you export any content type's data to **CSV, JSON, or XLSX** — with full control over which columns to include, per-field filtering, and draft/published status selection.
 
 ![Strapi v5](https://img.shields.io/badge/Strapi-v5-blueviolet?logo=strapi)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
-![npm](https://img.shields.io/npm/v/@velosofy/strapi-plugin-data-exporter)
+![npm](https://img.shields.io/npm/v/%40velosofy%2Fstrapi-plugin-data-exporter)
 
 ---
 
@@ -12,29 +12,33 @@ A **Strapi v5** admin plugin that lets you export any content type's data to a *
 
 - 📋 **Content type picker** — lists all visible collection types (mirrors the Content Manager)
 - ✅ **Column selector** — scalar fields are pre-selected; relational fields are shown but unchecked by default
-- 📦 **Full export** — exports every record without pagination limits
+- 🔍 **Per-field filters** — filter by any scalar field with type-aware operators (contains, equals, >, <, is empty, etc.)
+- 📊 **Multiple export formats** — export as **CSV**, **JSON**, or **XLSX** (Excel)
+- 🟢 **Status filter** — for content types with Draft & Publish enabled, choose **Published**, **Draft**, or **All**
+- 🔢 **Live record count** — shows how many records match the current filters before you export
+- 📦 **Full export** — exports every matching record without pagination limits
 - 🔗 **Relations as IDs** — relational / media / component fields are exported as comma-joined `documentId` values
 - 🔒 **Admin-only** — all endpoints require an authenticated Strapi admin session
-- 💾 **One-click download** — triggers an immediate browser CSV download
+- 💾 **One-click download** — triggers an immediate browser file download
 
 ---
 
 ## Requirements
 
-| Dependency | Version       |
-|------------|---------------|
-| Strapi     | `^5.0.0`      |
-| Node.js    | `>=18.0.0`    |
-| React      | `^18.0.0`     |
+| Dependency | Version    |
+|------------|------------|
+| Strapi     | `^5.0.0`   |
+| Node.js    | `>=18.0.0` |
+| React      | `^18.0.0`  |
 
 ---
 
 ## Installation
 
 ```bash
-npm install strapi-plugin-data-exporter
+npm install @velosofy/strapi-plugin-data-exporter
 # or
-yarn add strapi-plugin-data-exporter
+yarn add @velosofy/strapi-plugin-data-exporter
 ```
 
 ---
@@ -60,18 +64,48 @@ That's it — no additional configuration is required.
 
 1. Log into the **Strapi Admin Panel**.
 2. Click **Data Exporter** in the left-hand sidebar (look for the download icon).
-3. **Step 1 — Select content type**: choose a collection type from the dropdown.
-4. **Step 2 — Select columns**: all scalar fields are pre-checked. Toggle any columns you want to include/exclude. Relational fields are listed with a `Relation` badge and are unchecked by default.
-5. Click **Export CSV** — the file downloads immediately.
+3. **Select a content type** from the dropdown — the field selector and export options appear automatically.
+4. **Select columns** — all scalar fields are pre-checked. Toggle any columns you want to include/exclude. Relational fields are listed with a badge and are unchecked by default.
+5. *(Optional)* **Add filters** — click **+ Add Filter** to narrow down records by field value. Operators are typed per field (string, number, date, boolean).
+6. *(Optional)* **Select status** — for content types with Draft & Publish, choose **Published**, **Draft**, or **All**. A live record count updates as you adjust filters and status.
+7. **Select format** — choose **CSV**, **JSON**, or **XLSX**.
+8. Click **Export CSV / Export JSON / Export XLSX** — the file downloads immediately.
 
 ---
 
-## CSV format
+## Export formats
 
+### CSV
 - All values are quoted
 - Headers match the Strapi field names
-- Relational, media, component, and dynamic zone fields are exported as comma-separated `documentId` strings (e.g. `abc123,def456`)
-- System fields (`id`, `documentId`, `createdAt`, `updatedAt`, `publishedAt`, `createdBy`, `updatedBy`, `locale`, `localizations`) are excluded from the column list
+- Relational, media, component, and dynamic zone fields are exported as comma-separated `documentId` strings
+
+### JSON
+- Pretty-printed JSON array of objects
+- Each object contains only the selected fields
+- Relational fields are exported as `documentId` strings (or comma-separated for multi-relations)
+
+### XLSX (Excel)
+- Single worksheet named `Export`
+- Column headers match Strapi field names
+- Binary-safe download (no encoding prompts)
+
+> System fields (`id`, `documentId`, `createdAt`, `updatedAt`, `publishedAt`, `createdBy`, `updatedBy`, `locale`, `localizations`) are excluded from the column list.
+
+---
+
+## Filtering
+
+Filters are applied per field with type-aware operators:
+
+| Field type        | Available operators                                                              |
+|-------------------|----------------------------------------------------------------------------------|
+| String / Text     | contains, does not contain, equals, not equals, starts with, ends with, is empty, is not empty |
+| Number            | =, not equals, >, >=, <, <=, is empty, is not empty                             |
+| Boolean           | is true, is false, is empty, is not empty                                        |
+| Date / Datetime   | on, before, before or on, after, after or on, is empty, is not empty             |
+
+Multiple filters are combined with **AND** logic.
 
 ---
 
@@ -101,12 +135,13 @@ npm run watch
 npm run build && npx yalc push
 
 # In your Strapi project — add the local package
-npx yalc add data-exporter
+npx yalc add @velosofy/strapi-plugin-data-exporter
 
-# After making changes, push updates from the plugin directory
+# Watch mode — auto-rebuilds and pushes on file changes
+npm run watch:link
+
+# Push updated build to yalc store
 npx yalc push --changed
-# Then in your Strapi project
-npx yalc update data-exporter
 ```
 
 ---
@@ -120,6 +155,22 @@ npx yalc update data-exporter
 5. Open a Pull Request
 
 Bug reports and feature requests are welcome via [GitHub Issues](https://github.com/Velosofy/strapi-data-exporter/issues).
+
+---
+
+## Changelog
+
+### 1.1.0
+- Added **JSON** and **XLSX** export formats
+- Added **per-field filter system** with type-aware operators
+- Added **Draft / Published / All** status toggle (for content types with Draft & Publish)
+- Added **live record count** preview before export
+- Simplified UI — content type selector always visible, fields and export options appear inline
+- Fixed XLSX binary encoding (no more Excel CSV encoding prompts)
+- Fixed draft/published count accuracy using `publishedAt` column
+
+### 1.0.0
+- Initial release — CSV export with column selection
 
 ---
 
