@@ -6,7 +6,6 @@ import * as XLSX from "xlsx";
 const SYSTEM_FIELDS = new Set([
   "id",
   "documentId",
-  "createdAt",
   "updatedAt",
   "publishedAt",
   "createdBy",
