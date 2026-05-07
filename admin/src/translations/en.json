@@ -8,6 +8,7 @@
   "data-exporter.fields.table.col.field": "Field",
   "data-exporter.fields.table.col.type": "Type",
   "data-exporter.fields.table.col.include": "Include",
+  "data-exporter.fields.table.col.column-name": "Column Name",
   "data-exporter.fields.select-all": "Select All",
   "data-exporter.fields.deselect-all": "Deselect All",
   "data-exporter.fields.badge.relation": "Relation",

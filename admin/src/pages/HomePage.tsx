@@ -101,6 +101,13 @@ const RELATIONAL_BADGE_MAP: Record<string, string> = {
   dynamiczone: "Dynamic Zone",
 };
 
+function prettify(name: string): string {
+  return name
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 const HomePage = () => {
   const { formatMessage } = useIntl();
   const { get, post } = useFetchClient();
@@ -120,6 +127,15 @@ const HomePage = () => {
   const [recordCount, setRecordCount] = useState<number | null>(null);
   const [countLoading, setCountLoading] = useState(false);
   const filterIdRef = useRef(0);
+  const [columnLabels, setColumnLabels] = useState<Record<string, string>>({});
+
+  // Persist column labels to localStorage whenever they change
+  useEffect(() => {
+    if (!selectedUID || Object.keys(columnLabels).length === 0) return;
+    try {
+      localStorage.setItem(storageKey(selectedUID), JSON.stringify(columnLabels));
+    } catch { /* ignore */ }
+  }, [columnLabels, selectedUID]);
 
   const t = (key: string) =>
     formatMessage({ id: getTranslation(key), defaultMessage: key });
@@ -164,6 +180,8 @@ const HomePage = () => {
 
   const selectedContentType = contentTypes.find((ct) => ct.uid === selectedUID);
 
+  const storageKey = (uid: string) => `${PLUGIN_ID}:columnLabels:${uid}`;
+
   const handleSelectContentType = (uid: string) => {
     setSelectedUID(uid);
     setFilters([]);
@@ -175,8 +193,18 @@ const HomePage = () => {
         ct.fields.filter((f) => !f.isRelational).map((f) => f.name)
       );
       setSelectedFields(defaults);
+      // Load saved labels, filling in any missing fields with prettified defaults
+      let saved: Record<string, string> = {};
+      try {
+        const raw = localStorage.getItem(storageKey(uid));
+        if (raw) saved = JSON.parse(raw) as Record<string, string>;
+      } catch { /* ignore */ }
+      const labels: Record<string, string> = {};
+      for (const f of ct.fields) labels[f.name] = saved[f.name] ?? prettify(f.name);
+      setColumnLabels(labels);
     } else {
       setSelectedFields(new Set());
+      setColumnLabels({});
     }
   };
 
@@ -256,6 +284,7 @@ const HomePage = () => {
         format: exportFormat,
         filters,
         status: exportStatus,
+        columnLabels,
       });
 
       console.log("Export response", res);
@@ -370,7 +399,7 @@ const HomePage = () => {
               </Flex>
 
               <Table
-                colCount={3}
+                colCount={4}
                 rowCount={selectedContentType.fields.length}
               >
                 <Thead>
@@ -388,6 +417,11 @@ const HomePage = () => {
                     <Th>
                       <Typography variant="sigma">
                         {t("fields.table.col.type")}
+                      </Typography>
+                    </Th>
+                    <Th>
+                      <Typography variant="sigma">
+                        {t("fields.table.col.column-name")}
                       </Typography>
                     </Th>
                   </Tr>
@@ -416,6 +450,15 @@ const HomePage = () => {
                             </Badge>
                           )}
                         </Flex>
+                      </Td>
+                      <Td>
+                        <TextInput
+                          value={columnLabels[field.name] ?? ""}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                            setColumnLabels((prev) => ({ ...prev, [field.name]: e.target.value }))
+                          }
+                          aria-label={`Column name for ${field.name}`}
+                        />
                       </Td>
                     </Tr>
                   ))}

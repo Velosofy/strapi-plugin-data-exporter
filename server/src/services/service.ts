@@ -189,40 +189,53 @@ const service = ({ strapi }: { strapi: Core.Strapi }) => ({
     uid: UID.ContentType,
     fields: string[],
     filters?: FilterRule[],
-    status: "published" | "draft" = "published"
+    status: "published" | "draft" = "published",
+    columnLabels?: Record<string, string>
   ): Promise<string> {
+    const label = (k: string) => columnLabels?.[k] || k;
     const rows = await this.fetchRows(uid, fields, filters, status);
+    const labeledFields = fields.map(label);
     const csvRows = rows.map((r) => {
       const out: Record<string, string | number | boolean> = {};
-      for (const k of fields) out[k] = r[k] ?? "";
+      for (const k of fields) out[label(k)] = r[k] ?? "";
       return out;
     });
-    return Papa.unparse(csvRows, { columns: fields, quotes: true });
+    return Papa.unparse(csvRows, { columns: labeledFields, quotes: true });
   },
 
   async exportJSON(
     uid: UID.ContentType,
     fields: string[],
     filters?: FilterRule[],
-    status: "published" | "draft" = "published"
+    status: "published" | "draft" = "published",
+    columnLabels?: Record<string, string>
   ): Promise<string> {
+    const label = (k: string) => columnLabels?.[k] || k;
     const rows = await this.fetchRows(uid, fields, filters, status);
-    return JSON.stringify(rows, null, 2);
+    const labeled = rows.map((row) => {
+      const out: FlatRow = {};
+      for (const k of fields) out[label(k)] = row[k];
+      return out;
+    });
+    return JSON.stringify(labeled, null, 2);
   },
 
   async exportXLSX(
     uid: UID.ContentType,
     fields: string[],
     filters?: FilterRule[],
-    status: "published" | "draft" = "published"
+    status: "published" | "draft" = "published",
+    columnLabels?: Record<string, string>
   ): Promise<Buffer> {
+    const label = (k: string) => columnLabels?.[k] || k;
     const rows = await this.fetchRows(uid, fields, filters, status);
+    const labeledFields = fields.map(label);
     const xlsxRows = rows.map((r) => {
       const out: Record<string, string | number | boolean> = {};
-      for (const k of fields) out[k] = r[k] ?? "";
+      for (const k of fields) out[label(k)] = r[k] ?? "";
       return out;
     });
-    const worksheet = XLSX.utils.json_to_sheet(xlsxRows, { header: fields });
+    const worksheet = XLSX.utils.json_to_sheet(xlsxRows, { header: labeledFields });
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Export");
     return Buffer.from(

@@ -10,6 +10,7 @@ interface ExportRequestBody {
   format: ExportFormat;
   filters?: FilterRule[];
   status?: "published" | "draft";
+  columnLabels?: Record<string, string>;
 }
 
 const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
@@ -30,7 +31,7 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
 
   async export(ctx: Context) {
     const body = ctx.request.body as Partial<ExportRequestBody>;
-    const { uid, fields, format = "csv", filters, status = "published" } = body;
+    const { uid, fields, format = "csv", filters, status = "published", columnLabels } = body;
 
     if (!uid || !Array.isArray(fields) || fields.length === 0) {
       ctx.status = 400;
@@ -52,7 +53,7 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
         const json: string = await strapi
           .plugin("data-exporter")
           .service("service")
-          .exportJSON(uid, fields, filters, status);
+          .exportJSON(uid, fields, filters, status, columnLabels);
 
         ctx.body = {
           data: Buffer.from(json, "utf-8").toString("base64"),
@@ -63,7 +64,7 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
         const xlsxBuffer: Buffer = await strapi
           .plugin("data-exporter")
           .service("service")
-          .exportXLSX(uid, fields, filters, status);
+          .exportXLSX(uid, fields, filters, status, columnLabels);
 
         ctx.body = {
           data: Buffer.from(xlsxBuffer).toString("base64"),
@@ -74,7 +75,7 @@ const controller = ({ strapi }: { strapi: Core.Strapi }) => ({
         const csv: string = await strapi
           .plugin("data-exporter")
           .service("service")
-          .exportCSV(uid, fields, filters, status);
+          .exportCSV(uid, fields, filters, status, columnLabels);
 
         ctx.body = {
           data: Buffer.from(csv, "utf-8").toString("base64"),
