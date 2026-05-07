@@ -12,6 +12,7 @@ A **Strapi v5** admin plugin that lets you export any content type's data to **C
 
 - 📋 **Content type picker** — lists all visible collection types (mirrors the Content Manager)
 - ✅ **Column selector** — scalar fields are pre-selected; relational fields are shown but unchecked by default
+- 🏷️ **Custom column names** — rename any column header before export; names are auto-prettified (`firstName` → `First Name`) and saved per content type in the browser
 - 🔍 **Per-field filters** — filter by any scalar field with type-aware operators (contains, equals, >, <, is empty, etc.)
 - 📊 **Multiple export formats** — export as **CSV**, **JSON**, or **XLSX** (Excel)
 - 🟢 **Status filter** — for content types with Draft & Publish enabled, choose **Published**, **Draft**, or **All**
@@ -66,10 +67,11 @@ That's it — no additional configuration is required.
 2. Click **Data Exporter** in the left-hand sidebar (look for the download icon).
 3. **Select a content type** from the dropdown — the field selector and export options appear automatically.
 4. **Select columns** — all scalar fields are pre-checked. Toggle any columns you want to include/exclude. Relational fields are listed with a badge and are unchecked by default.
-5. *(Optional)* **Add filters** — click **+ Add Filter** to narrow down records by field value. Operators are typed per field (string, number, date, boolean).
-6. *(Optional)* **Select status** — for content types with Draft & Publish, choose **Published**, **Draft**, or **All**. A live record count updates as you adjust filters and status.
-7. **Select format** — choose **CSV**, **JSON**, or **XLSX**.
-8. Click **Export CSV / Export JSON / Export XLSX** — the file downloads immediately.
+5. *(Optional)* **Rename column headers** — each field has an editable **Column Name** input, pre-filled with a prettified version of the field name (e.g. `createdAt` → `Created At`). Edit any name to customize the header in the exported file. Names are saved per content type in your browser and restored on your next visit. Clearing a name falls back to the original field name.
+6. *(Optional)* **Add filters** — click **+ Add Filter** to narrow down records by field value. Operators are typed per field (string, number, date, boolean).
+7. *(Optional)* **Select status** — for content types with Draft & Publish, choose **Published**, **Draft**, or **All**. A live record count updates as you adjust filters and status.
+8. **Select format** — choose **CSV**, **JSON**, or **XLSX**.
+9. Click **Export CSV / Export JSON / Export XLSX** — the file downloads immediately.
 
 ---
 
@@ -77,17 +79,17 @@ That's it — no additional configuration is required.
 
 ### CSV
 - All values are quoted
-- Headers match the Strapi field names
+- Headers use the custom column name if set, otherwise the Strapi field name
 - Relational, media, component, and dynamic zone fields are exported as comma-separated `documentId` strings
 
 ### JSON
 - Pretty-printed JSON array of objects
-- Each object contains only the selected fields
+- Each object's keys use the custom column name if set, otherwise the Strapi field name
 - Relational fields are exported as `documentId` strings (or comma-separated for multi-relations)
 
 ### XLSX (Excel)
 - Single worksheet named `Export`
-- Column headers match Strapi field names
+- Column headers use the custom column name if set, otherwise the Strapi field name
 - Binary-safe download (no encoding prompts)
 
 > System fields (`id`, `documentId`, `createdAt`, `updatedAt`, `publishedAt`, `createdBy`, `updatedBy`, `locale`, `localizations`) are excluded from the column list.
@@ -159,6 +161,14 @@ Bug reports and feature requests are welcome via [GitHub Issues](https://github.
 ---
 
 ## Changelog
+
+### 1.3.0
+- Added **custom column names** — rename any export header directly in the UI
+- Column names are auto-prettified from field names (`myField` → `My Field`) and saved per content type in the browser (localStorage), restored on next visit
+- Clearing a custom name falls back to the original field name in all export formats
+
+### 1.2.0
+- `createdAt` is now included as an exportable field (no longer excluded as a system field)
 
 ### 1.1.0
 - Added **JSON** and **XLSX** export formats
